@@ -13,6 +13,7 @@ import time  # for time sleep
 import sys  # for PyCharm compatibility with Windows10 64bit
 from apiclient import errors  # for Google API errors
 import simplejson  # for Google API errors content
+#import socket  # only for socket.error handling
 import ssl  # only for ssl.SSLEOError handling
 #import errno
 #from socket import error as error_socket
@@ -150,7 +151,7 @@ if __name__ == '__main__':
             error = simplejson.loads(err.content)
             if error.get('code') == 403 and \
                 error.get('errors')[0].get('reason') \
-                    in ['rateLimitExceeded', 'userRateLimitExceeded']:
+                in ['rateLimitExceeded', 'userRateLimitExceeded']:
                 print('Rate limit exceeded! Waiting 10 seconds')
                 time.sleep(10)
             elif error.get('code') == 500:
