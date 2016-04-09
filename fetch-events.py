@@ -13,9 +13,14 @@ import time  # for time sleep
 import sys  # for PyCharm compatibility with Windows10 64bit
 from apiclient import errors  # for Google API errors
 import simplejson  # for Google API errors content
+#import socket  # only for socket.error handling
+import ssl  # only for ssl.SSLEOError handling
+#import errno
+#from socket import error as error_socket
 
 try:
     import argparse
+
     flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
 except ImportError:
     flags = None
@@ -27,6 +32,7 @@ CLIENT_SECRET_FILE = 'client_secret.json'  # client credentials
 APPLICATION_NAME = 'Google Calendar API Python'
 
 sys.modules['win32file'] = None  # needed for PyCharm on Windows10 64bit
+
 
 def get_credentials():
     """Gets valid user credentials from storage.
@@ -74,7 +80,7 @@ def main():
         calendarId='primary', timeMin=now, maxResults=10, singleEvents=True,
         orderBy='startTime').execute()
     events = eventsResult.get('items', [])
-    #print(events)
+    # print(events)
 
     counter = 0
 
@@ -94,10 +100,10 @@ def main():
         transparency = event.get('transparency')  # to get busy/available status
         summary = event.get('summary')  # to get the title
         description = event.get('description')  # description of the event
-        #print('NO DESCRIPTION', description)
-        #print(summary.find('meeting'))
-        #print(description.find('meeting'))
-        #print(start, event['summary'])
+        # print('NO DESCRIPTION', description)
+        # print(summary.find('meeting'))
+        # print(description.find('meeting'))
+        # print(start, event['summary'])
         print('Event', counter, end="")
         print(': ', end="")
         if summary is not None:
@@ -106,23 +112,23 @@ def main():
             print('(No title)')
         if summary is None or description is None:
             if transparency not in ['transparent']:
-                #print('BUSY')
+                # print('BUSY')
                 busy = True
-            #else:
-                #print('AVAILABLE')
+                # else:
+                # print('AVAILABLE')
         elif summary is not None and description is not None:
             if summary.find('meeting') >= 0 or description.find('meeting') >= 0:
                 meeting = True
             if transparency not in ['transparent'] and meeting:
-                #print('IN A MEETING')
+                # print('IN A MEETING')
                 busy = True
             elif transparency not in ['transparent']:
-                #print('BUSY')
+                # print('BUSY')
                 busy = True
-            #else:
-                #print('AVAILABLE')
+                # else:
+                # print('AVAILABLE')
         counter += 1
-    #print(busy, meeting)
+    # print(busy, meeting)
     print('Status of the office: ', end="")
     if busy and meeting:
         print('IN A MEETING')
@@ -130,6 +136,7 @@ def main():
         print('BUSY')
     else:
         print('AVAILABLE')
+
 
 request = 0
 
@@ -142,9 +149,20 @@ if __name__ == '__main__':
             print('Requests: ', request)
         except errors.HttpError as err:
             error = simplejson.loads(err.content)
-            if error.get('code') == 403:
+            if error.get('code') == 403 and \
+                error.get('errors')[0].get('reason') \
+                in ['rateLimitExceeded', 'userRateLimitExceeded']:
                 print('Rate limit exceeded! Waiting 10 seconds')
                 time.sleep(10)
             elif error.get('code') == 500:
                 print('Server Internal Error')
+                time.sleep(10)
+            elif IOError:
+                print('I/O error')
+                time.sleep(10)
+            elif ssl.SSLError:
+                print('SSL error')
+                time.sleep(10)
+            else:
+                print('Unexpected Error!')
                 time.sleep(10)
