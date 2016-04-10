@@ -64,6 +64,8 @@ def get_credentials():
 
 status = ''
 counter = 0
+titles = []
+description_text = []
 
 def main():
     """Shows basic usage of the Google Calendar API.
@@ -97,7 +99,10 @@ def main():
         # print('No running events found.')
 
     new_counter = 0
-    titles = []
+    new_titles = []
+    new_description_text = []
+    #titles = []
+    #description_text = []
     message = {}
     message_text = {}
     message_text['checking'] = '\nChecking your calendar for events...'
@@ -115,19 +120,19 @@ def main():
         # print('Event', counter, end="")
         # print(': ', end="")
         if summary is not None:
-            titles.append(summary)
+            new_titles.append(summary)
             #message['title'] = summary
             if summary.find('meeting') >= 0:
                 meeting = True
         else:
-            titles.append('(No title)')
+            new_titles.append('(No title)')
             #message['title'] = '(No title)'
         if description is not None:
-            message['description'] = description
+            new_description_text.append(description)
             if description.find('meeting') >= 0:
                 meeting = True
         else:
-            message['description'] = '(No description)'
+            new_description_text.append('(No description)')
         if transparency not in ['transparent']:
             busy = True
         new_counter += 1
@@ -155,11 +160,15 @@ def main():
 
     global status
     global counter
+    global titles
+    global description_text
 
-    if new_status != status or new_counter != counter:
+    if new_status != status or new_counter != counter or new_titles != titles or new_description_text != description_text:
         status = new_status
         counter = new_counter
         new_counter = 0
+        titles = new_titles
+        description_text = new_description_text
         print("\nChecking your calendar for events...")
         print('Number of running events: ', counter)
         no_titles = 0
@@ -168,8 +177,12 @@ def main():
             print('Event', no_titles, end="")
             print(': ', end="")
             print(title)
+            print('Description', no_titles, end="")
+            print(': ', end="")
+            print(description_text[no_titles - 1])
         print('Status of the office: ', end="")
         print(status)
+        print('Last updated: ', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     """
     message_text['checking'] = '\nChecking your calendar for events...'
     message_text['number'] = 'Number of running events: '
