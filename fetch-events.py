@@ -63,6 +63,7 @@ def get_credentials():
     return credentials
 
 status = ''
+counter = 0
 
 def main():
     """Shows basic usage of the Google Calendar API.
@@ -94,7 +95,8 @@ def main():
 
     #if not events:
         # print('No running events found.')
-    counter = 0
+
+    new_counter = 0
     titles = []
     message = {}
     message_text = {}
@@ -128,7 +130,7 @@ def main():
             message['description'] = '(No description)'
         if transparency not in ['transparent']:
             busy = True
-        counter += 1
+        new_counter += 1
     # print(busy, meeting)
     """
     print("\nChecking your calendar for events...")
@@ -152,9 +154,12 @@ def main():
         #print('AVAILABLE')
 
     global status
+    global counter
 
-    if new_status != status:
+    if new_status != status or new_counter != counter:
         status = new_status
+        counter = new_counter
+        new_counter = 0
         print("\nChecking your calendar for events...")
         print('Number of running events: ', counter)
         no_titles = 0
