@@ -16,6 +16,8 @@ import simplejson  # for Google API errors content
 import ssl  # only for ssl.SSLEOError handling
 #import errno
 #from socket import error as error_socket
+from time import gmtime, strftime
+from datetime import timedelta
 
 try:
     import argparse
@@ -60,6 +62,7 @@ def get_credentials():
         print('Storing credentials to ' + credential_path)
     return credentials
 
+status = ''
 
 def main():
     """Shows basic usage of the Google Calendar API.
@@ -72,30 +75,34 @@ def main():
     service = discovery.build('calendar', 'v3', http=http)
 
     now = datetime.datetime.utcnow().isoformat() + 'Z'
-
-    print("\nChecking your calendar for events...")
+    #current_time = strftime("%Y-%m-%dT%H:%M:%S", gmtime())
+    #current_time = (datetime.datetime.now()).isoformat()
+    threshold = (datetime.datetime.utcnow() + timedelta(seconds=1)).isoformat() + 'Z'
 
     eventsResult = service.events().list(
-        calendarId='primary', timeMin=now, maxResults=10, singleEvents=True,
+        calendarId='primary', timeMin=now, timeMax=threshold, maxResults=10, singleEvents=True,
         orderBy='startTime').execute()
     events = eventsResult.get('items', [])
-    # print(events)
+    #print(events)
 
-    counter = 0
-
-    for event in events:
-        if event['sequence'] is not None:
-            counter += 1
-    print('Number of running events: ', counter)
+    #for event in events:
+    #    if event['sequence'] is not None:
+    #        counter += 1
 
     meeting = False
     busy = False
 
-    if not events:
-        print('No running events found.')
-    counter = 1
+    #if not events:
+        # print('No running events found.')
+    counter = 0
+    titles = []
+    message = {}
+    message_text = {}
+    message_text['checking'] = '\nChecking your calendar for events...'
+
     for event in events:
-        start = event['start'].get('dateTime', event['start'].get('date'))  # to get date and time of event
+        start = event['start'].get('dateTime', event['start'].get('date'))  # to get start date and time of event
+        end = event['end'].get('dateTime', event['end'].get('date'))  # to get end date and time of event
         transparency = event.get('transparency')  # to get busy/available status
         summary = event.get('summary')  # to get the title
         description = event.get('description')  # description of the event
@@ -103,39 +110,73 @@ def main():
         # print(summary.find('meeting'))
         # print(description.find('meeting'))
         # print(start, event['summary'])
-        print('Event', counter, end="")
-        print(': ', end="")
+        # print('Event', counter, end="")
+        # print(': ', end="")
         if summary is not None:
-            print(event['summary'])
-        else:
-            print('(No title)')
-        if summary is None or description is None:
-            if transparency not in ['transparent']:
-                # print('BUSY')
-                busy = True
-                # else:
-                # print('AVAILABLE')
-        elif summary is not None and description is not None:
-            if summary.find('meeting') >= 0 or description.find('meeting') >= 0:
+            titles.append(summary)
+            #message['title'] = summary
+            if summary.find('meeting') >= 0:
                 meeting = True
-            if transparency not in ['transparent'] and meeting:
-                # print('IN A MEETING')
-                busy = True
-            elif transparency not in ['transparent']:
-                # print('BUSY')
-                busy = True
-                # else:
-                # print('AVAILABLE')
+        else:
+            titles.append('(No title)')
+            #message['title'] = '(No title)'
+        if description is not None:
+            message['description'] = description
+            if description.find('meeting') >= 0:
+                meeting = True
+        else:
+            message['description'] = '(No description)'
+        if transparency not in ['transparent']:
+            busy = True
         counter += 1
     # print(busy, meeting)
+    """
+    print("\nChecking your calendar for events...")
+    print('Number of running events: ', counter)
+    no_titles = 0
+    for title in titles:
+        no_titles += 1
+        print('Event', no_titles, end="")
+        print(': ', end="")
+        print(title)
     print('Status of the office: ', end="")
+    """
     if busy and meeting:
-        print('IN A MEETING')
+        new_status = 'IN A MEETING'
+        #print('IN A MEETING')
     elif busy:
-        print('BUSY')
+        new_status = 'BUSY'
+        #print('BUSY')
     else:
-        print('AVAILABLE')
+        new_status = 'AVAILABLE'
+        #print('AVAILABLE')
 
+    global status
+
+    if new_status != status:
+        status = new_status
+        print("\nChecking your calendar for events...")
+        print('Number of running events: ', counter)
+        no_titles = 0
+        for title in titles:
+            no_titles += 1
+            print('Event', no_titles, end="")
+            print(': ', end="")
+            print(title)
+        print('Status of the office: ', end="")
+        print(status)
+    """
+    message_text['checking'] = '\nChecking your calendar for events...'
+    message_text['number'] = 'Number of running events: '
+    message_text['counter'] = counter
+    no_titles = 0
+    for title in titles:
+        no_titles += 1
+        message_text['no_titles'] = no_titles
+        message_text['event'[no_titles]] = title
+    message_text['status'] = status
+    print(message_text)
+    """
 
 request = 0
 
@@ -145,7 +186,7 @@ if __name__ == '__main__':
             main()
             time.sleep(1)
             request += 1
-            print('Requests: ', request)
+            #print('Requests: ', request)
         except errors.HttpError as err:
             error = simplejson.loads(err.content)
             if error.get('code') == 403 and \
