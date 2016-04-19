@@ -16,7 +16,7 @@ import simplejson  # for Google API errors content
 import ssl  # only for ssl.SSLEOError handling
 #import errno
 #from socket import error as error_socket
-from time import gmtime, strftime
+#from time import gmtime, strftime
 from datetime import timedelta
 
 try:
@@ -67,6 +67,14 @@ counter = 0
 titles = []
 description_text = []
 
+""" custom variables """
+maxEvents = 5  # maximum number of events the script will check
+updateInterval = 1  # interval between updates in seconds
+errorWaitTime = 10  # error wait time interval in seconds
+meetingStatus = 'IN A MEETING'  # text when in a meeting
+busyStatus = 'BUSY'  # text when busy
+availableStatus = 'AVAILABLE'  # text when available
+
 
 def main():
     """Shows basic usage of the Google Calendar API.
@@ -84,7 +92,7 @@ def main():
     threshold = (datetime.datetime.utcnow() + timedelta(seconds=1)).isoformat() + 'Z'
 
     eventsResult = service.events().list(
-        calendarId='primary', timeMin=now, timeMax=threshold, maxResults=10, singleEvents=True,
+        calendarId='primary', timeMin=now, timeMax=threshold, maxResults=maxEvents, singleEvents=True,
         orderBy='startTime').execute()
     events = eventsResult.get('items', [])
     #print(events)
@@ -104,7 +112,7 @@ def main():
     new_description_text = []
     #titles = []
     #description_text = []
-    message = {}
+    #message = {}
     message_text = {}
     message_text['checking'] = '\nChecking your calendar for events...'
 
@@ -153,13 +161,13 @@ def main():
     print('Status of the office: ', end="")
     """
     if busy and meeting:
-        new_status = 'IN A MEETING'
+        new_status = meetingStatus
         #print('IN A MEETING')
     elif busy:
-        new_status = 'BUSY'
+        new_status = busyStatus
         #print('BUSY')
     else:
-        new_status = 'AVAILABLE'
+        new_status = availableStatus
         #print('AVAILABLE')
 
     global status
@@ -187,6 +195,7 @@ def main():
         print('Status of the office: ', end="")
         print(status)
         print('Last updated: ', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        print('Number of requests since last update: ', request)
     """
     message_text['checking'] = '\nChecking your calendar for events...'
     message_text['number'] = 'Number of running events: '
@@ -206,7 +215,7 @@ if __name__ == '__main__':
     while True:
         try:
             main()
-            time.sleep(1)
+            time.sleep(updateInterval)
             request += 1
             #print('Requests: ', request)
         except errors.HttpError as err:
@@ -215,16 +224,16 @@ if __name__ == '__main__':
                 error.get('errors')[0].get('reason') \
                     in ['rateLimitExceeded', 'userRateLimitExceeded']:
                 print('Rate limit exceeded! Waiting 10 seconds...')
-                time.sleep(10)
+                time.sleep(errorWaitTime)
             elif error.get('code') == 500:
                 print('Server Internal Error (UPDATE PENDING...)')
-                time.sleep(10)
+                time.sleep(errorWaitTime)
             elif IOError:
                 print('I/O error (UPDATE PENDING...)')
-                time.sleep(10)
+                time.sleep(errorWaitTime)
             elif ssl.SSLError:
                 print('SSL error (UPDATE PENDING...)')
-                time.sleep(10)
+                time.sleep(errorWaitTime)
             else:
                 print('Unexpected Error! (UPDATE PENDING...)')
-                time.sleep(10)
+                time.sleep(errorWaitTime)
