@@ -67,6 +67,7 @@ counter = 0
 titles = []
 description_text = []
 
+
 def main():
     """Shows basic usage of the Google Calendar API.
 
@@ -122,14 +123,17 @@ def main():
         if summary is not None:
             new_titles.append(summary)
             #message['title'] = summary
-            if summary.find('meeting') >= 0:
+            lower_case = summary.lower()
+            if lower_case.find('meeting') >= 0:
                 meeting = True
         else:
             new_titles.append('(No title)')
             #message['title'] = '(No title)'
         if description is not None:
             new_description_text.append(description)
-            if description.find('meeting') >= 0:
+            #print(description)
+            lower_case = description.lower()
+            if lower_case.find('meeting') >= 0:
                 meeting = True
         else:
             new_description_text.append('(No description)')
@@ -210,17 +214,17 @@ if __name__ == '__main__':
             if error.get('code') == 403 and \
                 error.get('errors')[0].get('reason') \
                     in ['rateLimitExceeded', 'userRateLimitExceeded']:
-                print('Rate limit exceeded! Waiting 10 seconds')
+                print('Rate limit exceeded! Waiting 10 seconds...')
                 time.sleep(10)
             elif error.get('code') == 500:
-                print('Server Internal Error')
+                print('Server Internal Error (UPDATE PENDING...)')
                 time.sleep(10)
             elif IOError:
-                print('I/O error')
+                print('I/O error (UPDATE PENDING...)')
                 time.sleep(10)
             elif ssl.SSLError:
-                print('SSL error')
+                print('SSL error (UPDATE PENDING...)')
                 time.sleep(10)
             else:
-                print('Unexpected Error!')
+                print('Unexpected Error! (UPDATE PENDING...)')
                 time.sleep(10)
