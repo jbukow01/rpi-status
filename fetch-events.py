@@ -14,10 +14,23 @@ import sys  # for PyCharm compatibility with Windows10 64bit
 from apiclient import errors  # for Google API errors
 import simplejson  # for Google API errors content
 import ssl  # only for ssl.SSLEOError handling
+import socket  # for socket.error
 #import errno
 #from socket import error as error_socket
 #from time import gmtime, strftime
 from datetime import timedelta
+
+#import RPi.GPIO as GPIO # import of gpios for raspberry pi
+#GPIO.setwarnings(False)
+
+#meetingPin = 15
+#busyPin = 16
+#availablePin = 18
+
+#GPIO.setmode(GPIO.BOARD)
+#GPIO.setup(meetingPin, GPIO.OUT)
+#GPIO.setup(busyPin, GPIO.OUT)
+#GPIO.setup(availablePin, GPIO.OUT)
 
 try:
     import argparse
@@ -162,12 +175,21 @@ def main():
     """
     if busy and meeting:
         new_status = meetingStatus
+        #GPIO.output(meetingPin, GPIO.HIGH)
+        #GPIO.output(busyPin, GPIO.LOW)
+        #GPIO.output(availablePin, GPIO.LOW)
         #print('IN A MEETING')
     elif busy:
         new_status = busyStatus
+        #GPIO.output(busyPin, GPIO.HIGH)
+        #GPIO.output(meetingPin, GPIO.LOW)
+        #GPIO.output(availablePin, GPIO.LOW)
         #print('BUSY')
     else:
         new_status = availableStatus
+        #GPIO.output(availablePin, GPIO.HIGH)
+        #GPIO.output(meetingPin, GPIO.LOW)
+        #GPIO.output(busyPin, GPIO.LOW)
         #print('AVAILABLE')
 
     global status
@@ -234,6 +256,14 @@ if __name__ == '__main__':
             elif ssl.SSLError:
                 print('SSL error (UPDATE PENDING...)')
                 time.sleep(errorWaitTime)
+            elif ssl.SSLEOFError:
+                print('SSL error (UPDATE PENDING...)')
+                time.sleep(errorWaitTime)
+            elif socket.error:
+                print('Network is unreachable (UPDATE PENDING...)')
+                time.sleep(errorWaitTime)
             else:
                 print('Unexpected Error! (UPDATE PENDING...)')
                 time.sleep(errorWaitTime)
+
+#GPIO.cleanup()
