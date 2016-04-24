@@ -15,8 +15,8 @@ from apiclient import errors  # for Google API errors
 import simplejson  # for Google API errors content
 import ssl  # only for ssl.SSLEOError handling
 import socket  # for socket.error
-#import errno
-#from socket import error as error_socket
+import errno
+from socket import error as socket_error
 #from time import gmtime, strftime
 from datetime import timedelta
 
@@ -79,6 +79,7 @@ status = ''
 counter = 0
 titles = []
 description_text = []
+request = 0
 
 """ custom variables """
 maxEvents = 5  # maximum number of events the script will check
@@ -196,6 +197,7 @@ def main():
     global counter
     global titles
     global description_text
+    global request
 
     if new_status != status or new_counter != counter or new_titles != titles or new_description_text != description_text:
         status = new_status
@@ -217,7 +219,8 @@ def main():
         print('Status of the office: ', end="")
         print(status)
         print('Last updated: ', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        print('Number of requests since last update: ', request)
+        print('Number of requests since previous update: ', request)
+        request = 0
     """
     message_text['checking'] = '\nChecking your calendar for events...'
     message_text['number'] = 'Number of running events: '
@@ -230,8 +233,6 @@ def main():
     message_text['status'] = status
     print(message_text)
     """
-
-request = 0
 
 if __name__ == '__main__':
     while True:
@@ -265,5 +266,10 @@ if __name__ == '__main__':
             else:
                 print('Unexpected Error! (UPDATE PENDING...)')
                 time.sleep(errorWaitTime)
-
+        except socket_error as serr:
+            if serr.errno == errno.ECONNREFUSED:
+                print('Connection Refused! (UPDATE PENDING...)')
+            else:
+                print('Unexpected Error! (UPDATE PENDING...)')
+                time.sleep(errorWaitTime)
 #GPIO.cleanup()
