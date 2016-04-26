@@ -17,7 +17,6 @@ import ssl  # only for ssl.SSLEOError handling
 import socket  # for socket.error
 import errno
 from socket import error as socket_error
-#from time import gmtime, strftime
 from datetime import timedelta
 
 #import RPi.GPIO as GPIO # import of gpios for raspberry pi
@@ -101,32 +100,19 @@ def main():
     service = discovery.build('calendar', 'v3', http=http)
 
     now = datetime.datetime.utcnow().isoformat() + 'Z'
-    #current_time = strftime("%Y-%m-%dT%H:%M:%S", gmtime())
-    #current_time = (datetime.datetime.now()).isoformat()
     threshold = (datetime.datetime.utcnow() + timedelta(seconds=1)).isoformat() + 'Z'
 
     eventsResult = service.events().list(
         calendarId='primary', timeMin=now, timeMax=threshold, maxResults=maxEvents, singleEvents=True,
         orderBy='startTime').execute()
     events = eventsResult.get('items', [])
-    #print(events)
-
-    #for event in events:
-    #    if event['sequence'] is not None:
-    #        counter += 1
 
     meeting = False
     busy = False
 
-    #if not events:
-        # print('No running events found.')
-
     new_counter = 0
     new_titles = []
     new_description_text = []
-    #titles = []
-    #description_text = []
-    #message = {}
     message_text = {}
     message_text['checking'] = '\nChecking your calendar for events...'
 
@@ -136,24 +122,15 @@ def main():
         transparency = event.get('transparency')  # to get busy/available status
         summary = event.get('summary')  # to get the title
         description = event.get('description')  # description of the event
-        # print('NO DESCRIPTION', description)
-        # print(summary.find('meeting'))
-        # print(description.find('meeting'))
-        # print(start, event['summary'])
-        # print('Event', counter, end="")
-        # print(': ', end="")
         if summary is not None:
             new_titles.append(summary)
-            #message['title'] = summary
             lower_case = summary.lower()
             if lower_case.find('meeting') >= 0:
                 meeting = True
         else:
             new_titles.append('(No title)')
-            #message['title'] = '(No title)'
         if description is not None:
             new_description_text.append(description)
-            #print(description)
             lower_case = description.lower()
             if lower_case.find('meeting') >= 0:
                 meeting = True
@@ -162,36 +139,22 @@ def main():
         if transparency not in ['transparent']:
             busy = True
         new_counter += 1
-    # print(busy, meeting)
-    """
-    print("\nChecking your calendar for events...")
-    print('Number of running events: ', counter)
-    no_titles = 0
-    for title in titles:
-        no_titles += 1
-        print('Event', no_titles, end="")
-        print(': ', end="")
-        print(title)
-    print('Status of the office: ', end="")
-    """
+
     if busy and meeting:
         new_status = meetingStatus
         #GPIO.output(meetingPin, GPIO.HIGH)
         #GPIO.output(busyPin, GPIO.LOW)
         #GPIO.output(availablePin, GPIO.LOW)
-        #print('IN A MEETING')
     elif busy:
         new_status = busyStatus
         #GPIO.output(busyPin, GPIO.HIGH)
         #GPIO.output(meetingPin, GPIO.LOW)
         #GPIO.output(availablePin, GPIO.LOW)
-        #print('BUSY')
     else:
         new_status = availableStatus
         #GPIO.output(availablePin, GPIO.HIGH)
         #GPIO.output(meetingPin, GPIO.LOW)
         #GPIO.output(busyPin, GPIO.LOW)
-        #print('AVAILABLE')
 
     global status
     global counter
@@ -221,18 +184,6 @@ def main():
         print('Last updated: ', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         print('Number of requests since previous update: ', request)
         request = 0
-    """
-    message_text['checking'] = '\nChecking your calendar for events...'
-    message_text['number'] = 'Number of running events: '
-    message_text['counter'] = counter
-    no_titles = 0
-    for title in titles:
-        no_titles += 1
-        message_text['no_titles'] = no_titles
-        message_text['event'[no_titles]] = title
-    message_text['status'] = status
-    print(message_text)
-    """
 
 if __name__ == '__main__':
     while True:
@@ -240,7 +191,6 @@ if __name__ == '__main__':
             main()
             time.sleep(updateInterval)
             request += 1
-            #print('Requests: ', request)
         except errors.HttpError as err:
             error = simplejson.loads(err.content)
             if error.get('code') == 403 and \
@@ -272,4 +222,11 @@ if __name__ == '__main__':
             else:
                 print('Unexpected Error! (UPDATE PENDING...)')
                 time.sleep(errorWaitTime)
+        except httplib2.ServerNotFoundError:
+            print('Server Not Found! Please check internet connection.')
+            time.sleep(errorWaitTime)
+        except:
+            print('Unexpected Error! (UPDATE PENDING...)')
+            time.sleep(errorWaitTime)
+
 #GPIO.cleanup()
