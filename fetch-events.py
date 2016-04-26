@@ -22,14 +22,14 @@ from datetime import timedelta
 #import RPi.GPIO as GPIO # import of gpios for raspberry pi
 #GPIO.setwarnings(False)
 
-#meetingPin = 15
-#busyPin = 16
-#availablePin = 18
+#meeting_pin = 15
+#busy_pin = 16
+#available_pin = 18
 
 #GPIO.setmode(GPIO.BOARD)
-#GPIO.setup(meetingPin, GPIO.OUT)
-#GPIO.setup(busyPin, GPIO.OUT)
-#GPIO.setup(availablePin, GPIO.OUT)
+#GPIO.setup(meeting_pin, GPIO.OUT)
+#GPIO.setup(busy_pin, GPIO.OUT)
+#GPIO.setup(available_pin, GPIO.OUT)
 
 try:
     import argparse
@@ -81,20 +81,15 @@ description_text = []
 request = 0
 
 """ custom variables """
-maxEvents = 5  # maximum number of events the script will check
-updateInterval = 1  # interval between updates in seconds
-errorWaitTime = 10  # error wait time interval in seconds
-meetingStatus = 'IN A MEETING'  # text when in a meeting
-busyStatus = 'BUSY'  # text when busy
-availableStatus = 'AVAILABLE'  # text when available
+max_events = 5  # maximum number of events the script will check
+update_interval = 1  # interval between updates in seconds
+error_wait_time = 10  # error wait time interval in seconds
+meeting_status = 'IN A MEETING'  # text when in a meeting
+busy_status = 'BUSY'  # text when busy
+available_status = 'AVAILABLE'  # text when available
 
 
 def main():
-    """Shows basic usage of the Google Calendar API.
-
-    Creates a Google Calendar API service object and outputs a list of the next
-    10 events on the user's calendar.
-    """
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
@@ -102,10 +97,10 @@ def main():
     now = datetime.datetime.utcnow().isoformat() + 'Z'
     threshold = (datetime.datetime.utcnow() + timedelta(seconds=1)).isoformat() + 'Z'
 
-    eventsResult = service.events().list(
-        calendarId='primary', timeMin=now, timeMax=threshold, maxResults=maxEvents, singleEvents=True,
+    events_result = service.events().list(
+        calendarId='primary', timeMin=now, timeMax=threshold, maxResults=max_events, singleEvents=True,
         orderBy='startTime').execute()
-    events = eventsResult.get('items', [])
+    events = events_result.get('items', [])
 
     meeting = False
     busy = False
@@ -141,20 +136,20 @@ def main():
         new_counter += 1
 
     if busy and meeting:
-        new_status = meetingStatus
-        #GPIO.output(meetingPin, GPIO.HIGH)
-        #GPIO.output(busyPin, GPIO.LOW)
-        #GPIO.output(availablePin, GPIO.LOW)
+        new_status = meeting_status
+        #GPIO.output(meeting_pin, GPIO.HIGH)
+        #GPIO.output(busy_pin, GPIO.LOW)
+        #GPIO.output(available_pin, GPIO.LOW)
     elif busy:
-        new_status = busyStatus
-        #GPIO.output(busyPin, GPIO.HIGH)
-        #GPIO.output(meetingPin, GPIO.LOW)
-        #GPIO.output(availablePin, GPIO.LOW)
+        new_status = busy_status
+        #GPIO.output(busy_pin, GPIO.HIGH)
+        #GPIO.output(meeting_pin, GPIO.LOW)
+        #GPIO.output(available_pin, GPIO.LOW)
     else:
-        new_status = availableStatus
-        #GPIO.output(availablePin, GPIO.HIGH)
-        #GPIO.output(meetingPin, GPIO.LOW)
-        #GPIO.output(busyPin, GPIO.LOW)
+        new_status = available_status
+        #GPIO.output(available_pin, GPIO.HIGH)
+        #GPIO.output(meeting_pin, GPIO.LOW)
+        #GPIO.output(busy_pin, GPIO.LOW)
 
     global status
     global counter
@@ -189,7 +184,7 @@ if __name__ == '__main__':
     while True:
         try:
             main()
-            time.sleep(updateInterval)
+            time.sleep(update_interval)
             request += 1
         except errors.HttpError as err:
             error = simplejson.loads(err.content)
@@ -197,36 +192,36 @@ if __name__ == '__main__':
                 error.get('errors')[0].get('reason') \
                     in ['rateLimitExceeded', 'userRateLimitExceeded']:
                 print('Rate limit exceeded! Waiting 10 seconds...')
-                time.sleep(errorWaitTime)
+                time.sleep(error_wait_time)
             elif error.get('code') == 500:
                 print('Server Internal Error (UPDATE PENDING...)')
-                time.sleep(errorWaitTime)
+                time.sleep(error_wait_time)
             elif IOError:
                 print('I/O error (UPDATE PENDING...)')
-                time.sleep(errorWaitTime)
+                time.sleep(error_wait_time)
             elif ssl.SSLError:
                 print('SSL error (UPDATE PENDING...)')
-                time.sleep(errorWaitTime)
+                time.sleep(error_wait_time)
             elif ssl.SSLEOFError:
                 print('SSL error (UPDATE PENDING...)')
-                time.sleep(errorWaitTime)
+                time.sleep(error_wait_time)
             elif socket.error:
                 print('Network is unreachable (UPDATE PENDING...)')
-                time.sleep(errorWaitTime)
+                time.sleep(error_wait_time)
             else:
                 print('Unexpected Error! (UPDATE PENDING...)')
-                time.sleep(errorWaitTime)
+                time.sleep(error_wait_time)
         except socket_error as serr:
             if serr.errno == errno.ECONNREFUSED:
                 print('Connection Refused! (UPDATE PENDING...)')
             else:
                 print('Unexpected Error! (UPDATE PENDING...)')
-                time.sleep(errorWaitTime)
+                time.sleep(error_wait_time)
         except httplib2.ServerNotFoundError:
             print('Server Not Found! Please check internet connection.')
-            time.sleep(errorWaitTime)
+            time.sleep(error_wait_time)
         except:
             print('Unexpected Error! (UPDATE PENDING...)')
-            time.sleep(errorWaitTime)
+            time.sleep(error_wait_time)
 
 #GPIO.cleanup()
