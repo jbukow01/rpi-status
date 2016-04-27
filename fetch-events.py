@@ -17,7 +17,6 @@ import ssl  # only for ssl.SSLEOError handling
 import socket  # for socket.error
 import errno
 from socket import error as socket_error
-from datetime import timedelta
 
 #import RPi.GPIO as GPIO # import of gpios for raspberry pi
 #GPIO.setwarnings(False)
@@ -25,11 +24,17 @@ from datetime import timedelta
 #meeting_pin = 15
 #busy_pin = 16
 #available_pin = 18
+#pir_pin = 29
 
 #GPIO.setmode(GPIO.BOARD)
 #GPIO.setup(meeting_pin, GPIO.OUT)
 #GPIO.setup(busy_pin, GPIO.OUT)
 #GPIO.setup(available_pin, GPIO.OUT)
+#GPIO.setup(pir_pin, GPIO.IN)
+
+#GPIO.output(meeting_pin, GPIO.LOW)
+#GPIO.output(busy_pin, GPIO.LOW)
+#GPIO.output(available_pin, GPIO.LOW)
 
 try:
     import argparse
@@ -77,8 +82,11 @@ def get_credentials():
 status = ''
 counter = 0
 titles = []
-description_text = []
 request = 0
+description_text = []
+motion = True
+new_motion = False
+previous_motion = True
 
 """ custom variables """
 max_events = 5  # maximum number of events the script will check
@@ -87,20 +95,50 @@ error_wait_time = 10  # error wait time interval in seconds
 meeting_status = 'IN A MEETING'  # text when in a meeting
 busy_status = 'BUSY'  # text when busy
 available_status = 'AVAILABLE'  # text when available
+away_status = 'AWAY'
+away_time = 5 #  time in minutes without any movement when the status will change to away
+
+calibration = 0
+print("Motion sensor calibration", end='')
+sys.stdout.flush()
+while calibration < 20:
+    print(".", end='')
+    sys.stdout.flush()
+    #GPIO.output(meeting_pin, GPIO.HIGH)
+    calibration += 1
+    time.sleep(0.2)
+    #GPIO.output(meeting_pin, GPIO.LOW)
+    time.sleep(0.2)
+
+movement = True
+
+
+def detection(start_time):
+    while not GPIO.input(pir_pin):
+        elapsed_time = time.time() - start_time
+        if elapsed_time > away_time*60:
+            movement = False
+            return False
+    movement = True
+    return True
 
 
 def main():
+    """Shows basic usage of the Google Calendar API.
+
+    Creates a Google Calendar API service object and outputs a list of the next
+    10 events on the user's calendar.
+    """
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
 
     now = datetime.datetime.utcnow().isoformat() + 'Z'
-    threshold = (datetime.datetime.utcnow() + timedelta(seconds=1)).isoformat() + 'Z'
 
-    events_result = service.events().list(
-        calendarId='primary', timeMin=now, timeMax=threshold, maxResults=max_events, singleEvents=True,
+    eventsResult = service.events().list(
+        calendarId='primary', timeMin=now, maxResults=max_events, singleEvents=True,
         orderBy='startTime').execute()
-    events = events_result.get('items', [])
+    events = eventsResult.get('items', [])
 
     meeting = False
     busy = False
@@ -108,6 +146,8 @@ def main():
     new_counter = 0
     new_titles = []
     new_description_text = []
+    motion = True
+    new_motion = False
     message_text = {}
     message_text['checking'] = '\nChecking your calendar for events...'
 
@@ -135,33 +175,49 @@ def main():
             busy = True
         new_counter += 1
 
-    if busy and meeting:
+    #motion = GPIO.input(pir_pin)
+
+    if busy and meeting and detection(time.time()):
         new_status = meeting_status
         #GPIO.output(meeting_pin, GPIO.HIGH)
         #GPIO.output(busy_pin, GPIO.LOW)
         #GPIO.output(available_pin, GPIO.LOW)
-    elif busy:
+    elif busy and detection(time.time()):
         new_status = busy_status
         #GPIO.output(busy_pin, GPIO.HIGH)
         #GPIO.output(meeting_pin, GPIO.LOW)
         #GPIO.output(available_pin, GPIO.LOW)
-    else:
+    elif detection(time.time()):
         new_status = available_status
         #GPIO.output(available_pin, GPIO.HIGH)
         #GPIO.output(meeting_pin, GPIO.LOW)
         #GPIO.output(busy_pin, GPIO.LOW)
+    else:
+        new_status = away_status
+        #GPIO.output(meeting_pin, GPIO.LOW)
+        #GPIO.output(busy_pin, GPIO.LOW)
+        #GPIO.output(available_pin, GPIO.LOW)
 
     global status
     global counter
     global titles
     global description_text
+    global previous_motion
     global request
 
-    if new_status != status or new_counter != counter or new_titles != titles or new_description_text != description_text:
+    if not motion and motion == new_motion and previous_motion:
+        print("\nOFFICE UNOCCUPIED")
+        #GPIO.output(meeting_pin, GPIO.LOW)
+        #GPIO.output(busy_pin, GPIO.LOW)
+        #GPIO.output(available_pin, GPIO.LOW)
+        previous_motion = False
+        new_status = away_status
+    elif new_status != status or new_counter != counter or new_titles != titles or new_description_text != description_text and motion:
         status = new_status
         counter = new_counter
         new_counter = 0
         titles = new_titles
+        previous_motion = motion
         description_text = new_description_text
         print("\nChecking your calendar for events...")
         print('Number of running events: ', counter)
@@ -179,6 +235,7 @@ def main():
         print('Last updated: ', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         print('Number of requests since previous update: ', request)
         request = 0
+        start_time = time.time()
 
 if __name__ == '__main__':
     while True:
@@ -214,6 +271,7 @@ if __name__ == '__main__':
         except socket_error as serr:
             if serr.errno == errno.ECONNREFUSED:
                 print('Connection Refused! (UPDATE PENDING...)')
+                time.sleep(error_wait_time)
             else:
                 print('Unexpected Error! (UPDATE PENDING...)')
                 time.sleep(error_wait_time)
@@ -223,5 +281,6 @@ if __name__ == '__main__':
         except:
             print('Unexpected Error! (UPDATE PENDING...)')
             time.sleep(error_wait_time)
+
 
 #GPIO.cleanup()
