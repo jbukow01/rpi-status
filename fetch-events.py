@@ -18,23 +18,23 @@ import socket  # for socket.error
 import errno
 from socket import error as socket_error
 
-#import RPi.GPIO as GPIO # import of gpios for raspberry pi
-#GPIO.setwarnings(False)
+import RPi.GPIO as GPIO # import of gpios for raspberry pi
+GPIO.setwarnings(False)
 
-#meeting_pin = 15
-#busy_pin = 16
-#available_pin = 18
-#pir_pin = 29
+meeting_pin = 15
+busy_pin = 16
+available_pin = 18
+pir_pin = 29
 
-#GPIO.setmode(GPIO.BOARD)
-#GPIO.setup(meeting_pin, GPIO.OUT)
-#GPIO.setup(busy_pin, GPIO.OUT)
-#GPIO.setup(available_pin, GPIO.OUT)
-#GPIO.setup(pir_pin, GPIO.IN)
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(meeting_pin, GPIO.OUT)
+GPIO.setup(busy_pin, GPIO.OUT)
+GPIO.setup(available_pin, GPIO.OUT)
+GPIO.setup(pir_pin, GPIO.IN)
 
-#GPIO.output(meeting_pin, GPIO.LOW)
-#GPIO.output(busy_pin, GPIO.LOW)
-#GPIO.output(available_pin, GPIO.LOW)
+GPIO.output(meeting_pin, GPIO.LOW)
+GPIO.output(busy_pin, GPIO.LOW)
+GPIO.output(available_pin, GPIO.LOW)
 
 try:
     import argparse
@@ -83,10 +83,7 @@ status = ''
 counter = 0
 titles = []
 request = 0
-description_text = []
-motion = True
-new_motion = False
-previous_motion = True
+desc_text = []
 
 """ custom variables """
 max_events = 5  # maximum number of events the script will check
@@ -96,7 +93,7 @@ meeting_status = 'IN A MEETING'  # text when in a meeting
 busy_status = 'BUSY'  # text when busy
 available_status = 'AVAILABLE'  # text when available
 away_status = 'AWAY'
-away_time = 5 #  time in minutes without any movement when the status will change to away
+away_time = 0.2  # time in minutes without any movement in the office before the status will change to away
 
 calibration = 0
 print("Motion sensor calibration", end='')
@@ -104,50 +101,46 @@ sys.stdout.flush()
 while calibration < 20:
     print(".", end='')
     sys.stdout.flush()
-    #GPIO.output(meeting_pin, GPIO.HIGH)
+    GPIO.output(meeting_pin, GPIO.HIGH)
     calibration += 1
     time.sleep(0.2)
-    #GPIO.output(meeting_pin, GPIO.LOW)
+    GPIO.output(meeting_pin, GPIO.LOW)
     time.sleep(0.2)
-
-movement = True
+print("\nStatus in operation!")
 
 
 def detection(start_time):
     while not GPIO.input(pir_pin):
         elapsed_time = time.time() - start_time
         if elapsed_time > away_time*60:
-            movement = False
             return False
-    movement = True
     return True
 
 
 def main():
-    """Shows basic usage of the Google Calendar API.
-
-    Creates a Google Calendar API service object and outputs a list of the next
-    10 events on the user's calendar.
-    """
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
 
     now = datetime.datetime.utcnow().isoformat() + 'Z'
 
-    eventsResult = service.events().list(
+    events_result = service.events().list(
         calendarId='primary', timeMin=now, maxResults=max_events, singleEvents=True,
         orderBy='startTime').execute()
-    events = eventsResult.get('items', [])
+    events = events_result.get('items', [])
 
     meeting = False
     busy = False
 
+    global status
+    global counter
+    global titles
+    global desc_text
+    global request
+
     new_counter = 0
     new_titles = []
-    new_description_text = []
-    motion = True
-    new_motion = False
+    new_desc_text = []
     message_text = {}
     message_text['checking'] = '\nChecking your calendar for events...'
 
@@ -165,77 +158,65 @@ def main():
         else:
             new_titles.append('(No title)')
         if description is not None:
-            new_description_text.append(description)
+            new_desc_text.append(description)
             lower_case = description.lower()
             if lower_case.find('meeting') >= 0:
                 meeting = True
         else:
-            new_description_text.append('(No description)')
+            new_desc_text.append('(No description)')
         if transparency not in ['transparent']:
             busy = True
         new_counter += 1
 
-    #motion = GPIO.input(pir_pin)
+    motion_present = detection(time.time())
 
-    if busy and meeting and detection(time.time()):
+    if not motion_present:
+        new_status = away_status
+        GPIO.output(meeting_pin, GPIO.LOW)
+        GPIO.output(busy_pin, GPIO.LOW)
+        GPIO.output(available_pin, GPIO.LOW)
+    elif busy and meeting:
         new_status = meeting_status
-        #GPIO.output(meeting_pin, GPIO.HIGH)
-        #GPIO.output(busy_pin, GPIO.LOW)
-        #GPIO.output(available_pin, GPIO.LOW)
-    elif busy and detection(time.time()):
+        GPIO.output(meeting_pin, GPIO.HIGH)
+        GPIO.output(busy_pin, GPIO.LOW)
+        GPIO.output(available_pin, GPIO.LOW)
+    elif busy:
         new_status = busy_status
-        #GPIO.output(busy_pin, GPIO.HIGH)
-        #GPIO.output(meeting_pin, GPIO.LOW)
-        #GPIO.output(available_pin, GPIO.LOW)
-    elif detection(time.time()):
-        new_status = available_status
-        #GPIO.output(available_pin, GPIO.HIGH)
-        #GPIO.output(meeting_pin, GPIO.LOW)
-        #GPIO.output(busy_pin, GPIO.LOW)
+        GPIO.output(busy_pin, GPIO.HIGH)
+        GPIO.output(meeting_pin, GPIO.LOW)
+        GPIO.output(available_pin, GPIO.LOW)
     else:
-        new_status = away_status
-        #GPIO.output(meeting_pin, GPIO.LOW)
-        #GPIO.output(busy_pin, GPIO.LOW)
-        #GPIO.output(available_pin, GPIO.LOW)
+        new_status = available_status
+        GPIO.output(available_pin, GPIO.HIGH)
+        GPIO.output(meeting_pin, GPIO.LOW)
+        GPIO.output(busy_pin, GPIO.LOW)
 
-    global status
-    global counter
-    global titles
-    global description_text
-    global previous_motion
-    global request
-
-    if not motion and motion == new_motion and previous_motion:
-        print("\nOFFICE UNOCCUPIED")
-        #GPIO.output(meeting_pin, GPIO.LOW)
-        #GPIO.output(busy_pin, GPIO.LOW)
-        #GPIO.output(available_pin, GPIO.LOW)
-        previous_motion = False
-        new_status = away_status
-    elif new_status != status or new_counter != counter or new_titles != titles or new_description_text != description_text and motion:
+    if new_status != status or new_counter != counter or new_titles != titles or new_desc_text != desc_text:
         status = new_status
         counter = new_counter
         new_counter = 0
         titles = new_titles
-        previous_motion = motion
-        description_text = new_description_text
-        print("\nChecking your calendar for events...")
-        print('Number of running events: ', counter)
-        no_titles = 0
-        for title in titles:
-            no_titles += 1
-            print('Event', no_titles, end="")
-            print(': ', end="")
-            print(title)
-            print('Description', no_titles, end="")
-            print(': ', end="")
-            print(description_text[no_titles - 1])
-        print('Status of the office: ', end="")
-        print(status)
-        print('Last updated: ', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        print('Number of requests since previous update: ', request)
-        request = 0
-        start_time = time.time()
+        desc_text = new_desc_text
+        if status == away_status:
+            print('\nStatus of the office: ', end="")
+            print(status)
+        else:
+            print("\nChecking your calendar for events...")
+            print('Number of running events: ', counter)
+            no_titles = 0
+            for title in titles:
+                no_titles += 1
+                print('Event', no_titles, end="")
+                print(': ', end="")
+                print(title)
+                print('Description', no_titles, end="")
+                print(': ', end="")
+                print(desc_text[no_titles - 1])
+            print('Status of the office: ', end="")
+            print(status)
+            print('Last updated: ', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            print('Number of requests since previous update: ', request)
+            request = 0
 
 if __name__ == '__main__':
     while True:
@@ -282,5 +263,4 @@ if __name__ == '__main__':
             print('Unexpected Error! (UPDATE PENDING...)')
             time.sleep(error_wait_time)
 
-
-#GPIO.cleanup()
+GPIO.cleanup()
