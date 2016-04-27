@@ -17,6 +17,7 @@ import ssl  # only for ssl.SSLEOError handling
 import socket  # for socket.error
 import errno
 from socket import error as socket_error
+from datetime import timedelta
 
 import RPi.GPIO as GPIO # import of gpios for raspberry pi
 GPIO.setwarnings(False)
@@ -123,9 +124,10 @@ def main():
     service = discovery.build('calendar', 'v3', http=http)
 
     now = datetime.datetime.utcnow().isoformat() + 'Z'
+    threshold = (datetime.datetime.utcnow() + timedelta(seconds=1)).isoformat() + 'Z'
 
     events_result = service.events().list(
-        calendarId='primary', timeMin=now, maxResults=max_events, singleEvents=True,
+        calendarId='primary', timeMin=now, timeMax=threshold, maxResults=max_events, singleEvents=True,
         orderBy='startTime').execute()
     events = events_result.get('items', [])
 
