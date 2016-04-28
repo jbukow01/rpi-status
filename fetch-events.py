@@ -52,6 +52,38 @@ APPLICATION_NAME = 'Google Calendar API Python'
 
 sys.modules['win32file'] = None  # needed for PyCharm on Windows10 64bit
 
+status = ''
+counter = 0
+titles = []
+desc_text = []
+request = 0
+
+""" custom variables """
+max_events = 5  # maximum number of events the script will check
+update_interval = 1  # interval between updates in seconds
+error_wait_time = 10  # error wait time interval in seconds
+meeting_status = 'IN A MEETING'  # text when in a meeting
+busy_status = 'BUSY'  # text when busy
+available_status = 'AVAILABLE'  # text when available
+away_status = 'AWAY'
+away_time = 0.5  # time in minutes without any movement in the office before the status will change to away
+
+start_time = time.time()
+previously_away = None
+
+calibration = 0
+print("Motion sensor calibration", end='')
+sys.stdout.flush()
+while calibration < 20:
+    print(".", end='')
+    sys.stdout.flush()
+    GPIO.output(meeting_pin, GPIO.HIGH)
+    calibration += 1
+    time.sleep(0.2)
+    GPIO.output(meeting_pin, GPIO.LOW)
+    time.sleep(0.2)
+print("\nStatus in operation!")
+
 
 def get_credentials():
     """Gets valid user credentials from storage.
@@ -80,45 +112,20 @@ def get_credentials():
         print('Storing credentials to ' + credential_path)
     return credentials
 
-status = ''
-counter = 0
-titles = []
-request = 0
-desc_text = []
 
-""" custom variables """
-max_events = 5  # maximum number of events the script will check
-update_interval = 1  # interval between updates in seconds
-error_wait_time = 10  # error wait time interval in seconds
-meeting_status = 'IN A MEETING'  # text when in a meeting
-busy_status = 'BUSY'  # text when busy
-available_status = 'AVAILABLE'  # text when available
-away_status = 'AWAY'
-away_time = 0.2  # time in minutes without any movement in the office before the status will change to away
-
-calibration = 0
-print("Motion sensor calibration", end='')
-sys.stdout.flush()
-while calibration < 20:
-    print(".", end='')
-    sys.stdout.flush()
-    GPIO.output(meeting_pin, GPIO.HIGH)
-    calibration += 1
-    time.sleep(0.2)
-    GPIO.output(meeting_pin, GPIO.LOW)
-    time.sleep(0.2)
-print("\nStatus in operation!")
-
-
-def detection(start_time):
-    while not GPIO.input(pir_pin):
-        elapsed_time = time.time() - start_time
+def detection(start):
+    global start_time
+    if not GPIO.input(pir_pin):
+        elapsed_time = time.time() - start
         if elapsed_time > away_time*60:
             return False
-    return True
+        return True
+    else:
+        start_time = time.time()
+        return True
 
 
-def main():
+def get_events():
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
@@ -130,15 +137,13 @@ def main():
         calendarId='primary', timeMin=now, timeMax=threshold, maxResults=max_events, singleEvents=True,
         orderBy='startTime').execute()
     events = events_result.get('items', [])
+    return events
 
+
+def options():
+    events = get_events()
     meeting = False
     busy = False
-
-    global status
-    global counter
-    global titles
-    global desc_text
-    global request
 
     new_counter = 0
     new_titles = []
@@ -169,9 +174,12 @@ def main():
         if transparency not in ['transparent']:
             busy = True
         new_counter += 1
+    return new_titles, new_desc_text, meeting, busy, new_counter
 
-    motion_present = detection(time.time())
 
+def lights():
+    motion_present = detection(start_time)
+    new_titles, new_desc_text, meeting, busy, new_counter = options()
     if not motion_present:
         new_status = away_status
         GPIO.output(meeting_pin, GPIO.LOW)
@@ -192,17 +200,31 @@ def main():
         GPIO.output(available_pin, GPIO.HIGH)
         GPIO.output(meeting_pin, GPIO.LOW)
         GPIO.output(busy_pin, GPIO.LOW)
+    return new_status
+
+
+def status_print():
+    global request
+    global status
+    global counter
+    global titles
+    global desc_text
+    global previously_away
+    new_titles, new_desc_text, meeting, busy, new_counter = options()
+    new_status = lights()
 
     if new_status != status or new_counter != counter or new_titles != titles or new_desc_text != desc_text:
         status = new_status
         counter = new_counter
-        new_counter = 0
+        # new_counter = 0
         titles = new_titles
         desc_text = new_desc_text
-        if status == away_status:
+        if status == away_status and not previously_away:
             print('\nStatus of the office: ', end="")
             print(status)
-        else:
+            request = 0
+            previously_away = True
+        elif status != away_status:
             print("\nChecking your calendar for events...")
             print('Number of running events: ', counter)
             no_titles = 0
@@ -219,11 +241,15 @@ def main():
             print('Last updated: ', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             print('Number of requests since previous update: ', request)
             request = 0
+            previously_away = False
+        return True
+    else:
+        return False
 
 if __name__ == '__main__':
     while True:
         try:
-            main()
+            status_print()
             time.sleep(update_interval)
             request += 1
         except errors.HttpError as err:
@@ -261,6 +287,9 @@ if __name__ == '__main__':
         except httplib2.ServerNotFoundError:
             print('Server Not Found! Please check internet connection.')
             time.sleep(error_wait_time)
+        except KeyboardInterrupt:
+            print('\nInterrupted by external source')
+            break
         except:
             print('Unexpected Error! (UPDATE PENDING...)')
             time.sleep(error_wait_time)
