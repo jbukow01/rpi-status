@@ -8,31 +8,33 @@ from oauth2client import client
 from oauth2client import tools
 
 import datetime
-
 import time  # for time sleep
 import sys  # for PyCharm compatibility with Windows10 64bit
 from apiclient import errors  # for Google API errors
 import simplejson  # for Google API errors content
 import ssl  # only for ssl.SSLEOError handling
 import socket  # for socket.error
-import errno
-from socket import error as socket_error
-from datetime import timedelta
+from socket import error as socket_error  # for socket.error
+import errno  # for error numbers
+from datetime import timedelta  # for threshold time for timeMax
 
-import RPi.GPIO as GPIO # import of gpios for raspberry pi
+import RPi.GPIO as GPIO  # import of gpios for raspberry pi
 GPIO.setwarnings(False)
 
-meeting_pin = 15
-busy_pin = 16
-available_pin = 18
-pir_pin = 29
+"""pin numbers setup"""
+meeting_pin = 15  # pin on raspberry pi board for meeting light/indicator
+busy_pin = 16  # pin for busy light/indicator
+available_pin = 18  # pin for available light/indicator
+pir_pin = 29  # pin for input from PIR sensor
 
+"""setup modes for pins IN/OUT"""
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(meeting_pin, GPIO.OUT)
 GPIO.setup(busy_pin, GPIO.OUT)
 GPIO.setup(available_pin, GPIO.OUT)
 GPIO.setup(pir_pin, GPIO.IN)
 
+"""default start with lights off"""
 GPIO.output(meeting_pin, GPIO.LOW)
 GPIO.output(busy_pin, GPIO.LOW)
 GPIO.output(available_pin, GPIO.LOW)
@@ -44,7 +46,7 @@ try:
 except ImportError:
     flags = None
 
-# If modifying these scopes, delete your previously saved credentials
+# if modifying these scopes, delete your previously saved credentials
 # at ~/.credentials/calendar-python-rpi-status.json
 SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
 CLIENT_SECRET_FILE = 'client_secret.json'  # client credentials
@@ -52,25 +54,27 @@ APPLICATION_NAME = 'Google Calendar API Python'
 
 sys.modules['win32file'] = None  # needed for PyCharm on Windows10 64bit
 
+"""default variables at start"""
 status = ''
 counter = 0
 titles = []
 desc_text = []
 request = 0
-
-""" custom variables """
-max_events = 5  # maximum number of events the script will check
-update_interval = 1  # interval between updates in seconds
-error_wait_time = 10  # error wait time interval in seconds
-meeting_status = 'IN A MEETING'  # text when in a meeting
-busy_status = 'BUSY'  # text when busy
-available_status = 'AVAILABLE'  # text when available
-away_status = 'AWAY'
-away_time = 0.5  # time in minutes without any movement in the office before the status will change to away
-
 start_time = time.time()
 previously_away = None
 
+"""custom variables to modify as required"""
+max_events = 5  # maximum number of events the script will check
+update_interval = 0  # interval between updates in seconds (increase only if "Rate limit exceeded!" error appears)
+error_wait_time = 10  # error wait time interval in seconds before next try
+away_time = 1  # time in minutes without any movement in the office before the status will change to away
+# the below will only display when external screen is attached
+meeting_status = 'IN A MEETING'  # text when in a meeting
+busy_status = 'BUSY'  # text when busy
+available_status = 'AVAILABLE'  # text when available
+away_status = 'AWAY'  # test when away
+
+"""calibration of the PIR sensor (no movement should be performed during calibration)"""
 calibration = 0
 print("Motion sensor calibration", end='')
 sys.stdout.flush()
@@ -86,13 +90,10 @@ print("\nStatus in operation!")
 
 
 def get_credentials():
-    """Gets valid user credentials from storage.
-
-    If nothing has been stored, or if the stored credentials are invalid,
-    the OAuth2 flow is completed to obtain the new credentials.
-
-    Returns:
-        Credentials, the obtained credential.
+    """gets valid user credentials from local storage.
+    if credentials are not present, or if they are invalid,
+    the OAuth2 flow is executed to get the new credentials.
+    it returns the obtained credential.
     """
     home_dir = os.path.expanduser('~')
     credential_dir = os.path.join(home_dir, '.credentials')
@@ -114,6 +115,8 @@ def get_credentials():
 
 
 def detection(start):
+    """it checks the movement and returns true
+    or false if the away time is met"""
     global start_time
     if not GPIO.input(pir_pin):
         elapsed_time = time.time() - start
@@ -126,6 +129,7 @@ def detection(start):
 
 
 def get_events():
+    """it gets the events from the calendar"""
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
@@ -141,6 +145,12 @@ def get_events():
 
 
 def options():
+    """it checks the details about events
+    if meeting word is present in the title or description
+    it returns true for meeting status
+    it returns busy as true only if at least one event is set to "Busy"
+    in the calendar
+    it also returns obtained new titles, descriptions and running events count"""
     events = get_events()
     meeting = False
     busy = False
@@ -148,8 +158,6 @@ def options():
     new_counter = 0
     new_titles = []
     new_desc_text = []
-    message_text = {}
-    message_text['checking'] = '\nChecking your calendar for events...'
 
     for event in events:
         start = event['start'].get('dateTime', event['start'].get('date'))  # to get start date and time of event
@@ -178,6 +186,9 @@ def options():
 
 
 def lights():
+    """it checks for motions invoking detection() function
+    and it turns the lights off if no motion is present
+    or it turns the lights on according to the events"""
     motion_present = detection(start_time)
     new_titles, new_desc_text, meeting, busy, new_counter = options()
     if not motion_present:
@@ -204,6 +215,7 @@ def lights():
 
 
 def status_print():
+    """it prints the status of the office in the console"""
     global request
     global status
     global counter
@@ -242,9 +254,6 @@ def status_print():
             print('Number of requests since previous update: ', request)
             request = 0
             previously_away = False
-        return True
-    else:
-        return False
 
 if __name__ == '__main__':
     while True:
