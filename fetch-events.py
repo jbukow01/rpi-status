@@ -67,7 +67,7 @@ previously_away = None
 max_events = 5  # maximum number of events the script will check
 update_interval = 0  # interval between updates in seconds (increase only if "Rate limit exceeded!" error appears)
 error_wait_time = 10  # error wait time interval in seconds before next try
-away_time = 1  # time in minutes without any movement in the office before the status will change to away
+away_time = 0.5  # time in minutes without any movement in the office before the status will change to away
 # the below will only display when external screen is attached
 meeting_status = 'IN A MEETING'  # text when in a meeting
 busy_status = 'BUSY'  # text when busy
@@ -114,13 +114,43 @@ def get_credentials():
     return credentials
 
 
+def switch_lights_off():
+    GPIO.output(meeting_pin, GPIO.LOW)
+    GPIO.output(busy_pin, GPIO.LOW)
+    GPIO.output(available_pin, GPIO.LOW)
+
+
+def lights_flash():
+    GPIO.output(meeting_pin, GPIO.HIGH)
+    GPIO.output(busy_pin, GPIO.LOW)
+    GPIO.output(available_pin, GPIO.LOW)
+    time.sleep(0.1)
+    GPIO.output(meeting_pin, GPIO.LOW)
+    GPIO.output(busy_pin, GPIO.HIGH)
+    GPIO.output(available_pin, GPIO.LOW)
+    time.sleep(0.1)
+    GPIO.output(meeting_pin, GPIO.LOW)
+    GPIO.output(busy_pin, GPIO.LOW)
+    GPIO.output(available_pin, GPIO.HIGH)
+    time.sleep(0.1)
+
+
 def detection(start):
     """it checks the movement and returns true
     or false if the away time is met"""
     global start_time
     if not GPIO.input(pir_pin):
         elapsed_time = time.time() - start
-        if elapsed_time > away_time*60:
+        if away_time*20 < elapsed_time < away_time*60:
+            switch_lights_off()
+            time.sleep(1)
+        elif away_time*60 < elapsed_time < away_time*63:
+            flash = 0
+            while flash < 5:
+                lights_flash()
+                flash += 1
+        elif elapsed_time > away_time*62:
+            switch_lights_off()
             return False
         return True
     else:
@@ -185,6 +215,24 @@ def options():
     return new_titles, new_desc_text, meeting, busy, new_counter
 
 
+def meeting_on():
+    GPIO.output(meeting_pin, GPIO.HIGH)
+    GPIO.output(busy_pin, GPIO.LOW)
+    GPIO.output(available_pin, GPIO.LOW)
+
+
+def busy_on():
+    GPIO.output(busy_pin, GPIO.HIGH)
+    GPIO.output(meeting_pin, GPIO.LOW)
+    GPIO.output(available_pin, GPIO.LOW)
+
+
+def available_on():
+    GPIO.output(available_pin, GPIO.HIGH)
+    GPIO.output(meeting_pin, GPIO.LOW)
+    GPIO.output(busy_pin, GPIO.LOW)
+
+
 def lights():
     """it checks for motions invoking detection() function
     and it turns the lights off if no motion is present
@@ -193,24 +241,16 @@ def lights():
     new_titles, new_desc_text, meeting, busy, new_counter = options()
     if not motion_present:
         new_status = away_status
-        GPIO.output(meeting_pin, GPIO.LOW)
-        GPIO.output(busy_pin, GPIO.LOW)
-        GPIO.output(available_pin, GPIO.LOW)
+        switch_lights_off()
     elif busy and meeting:
         new_status = meeting_status
-        GPIO.output(meeting_pin, GPIO.HIGH)
-        GPIO.output(busy_pin, GPIO.LOW)
-        GPIO.output(available_pin, GPIO.LOW)
+        meeting_on()
     elif busy:
         new_status = busy_status
-        GPIO.output(busy_pin, GPIO.HIGH)
-        GPIO.output(meeting_pin, GPIO.LOW)
-        GPIO.output(available_pin, GPIO.LOW)
+        busy_on()
     else:
         new_status = available_status
-        GPIO.output(available_pin, GPIO.HIGH)
-        GPIO.output(meeting_pin, GPIO.LOW)
-        GPIO.output(busy_pin, GPIO.LOW)
+        available_on()
     return new_status
 
 
@@ -228,7 +268,6 @@ def status_print():
     if new_status != status or new_counter != counter or new_titles != titles or new_desc_text != desc_text:
         status = new_status
         counter = new_counter
-        # new_counter = 0
         titles = new_titles
         desc_text = new_desc_text
         if status == away_status and not previously_away:
