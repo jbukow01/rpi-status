@@ -21,20 +21,20 @@ from datetime import timedelta  # for threshold time for timeMax
 import RPi.GPIO as GPIO  # import of gpios for raspberry pi
 GPIO.setwarnings(False)
 
-"""pin numbers setup"""
+# pin numbers setup
 meeting_pin = 15  # pin on raspberry pi board for meeting light/indicator
 busy_pin = 16  # pin for busy light/indicator
 available_pin = 18  # pin for available light/indicator
 pir_pin = 29  # pin for input from PIR sensor
 
-"""setup modes for pins IN/OUT"""
+# setup modes for pins IN/OUT
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(meeting_pin, GPIO.OUT)
 GPIO.setup(busy_pin, GPIO.OUT)
 GPIO.setup(available_pin, GPIO.OUT)
 GPIO.setup(pir_pin, GPIO.IN)
 
-"""default start with lights off"""
+# default start with lights off
 GPIO.output(meeting_pin, GPIO.LOW)
 GPIO.output(busy_pin, GPIO.LOW)
 GPIO.output(available_pin, GPIO.LOW)
@@ -54,7 +54,7 @@ APPLICATION_NAME = 'Google Calendar API Python'
 
 sys.modules['win32file'] = None  # needed for PyCharm on Windows10 64bit
 
-"""default variables at start"""
+# default variables at start
 status = ''
 counter = 0
 titles = []
@@ -64,18 +64,18 @@ start_time = time.time()
 previously_away = None
 flash = 0
 
-"""custom variables to modify as required"""
+# custom variables to modify as required
 max_events = 5  # maximum number of events the script will check
 update_interval = 0  # interval between updates in seconds (increase only if "Rate limit exceeded!" error appears)
 error_wait_time = 10  # error wait time interval in seconds before next try
-away_time = 0.5  # time in minutes without any movement in the office before the status will change to away
+away_time = 5  # time in minutes without any movement in the office before the status will change to away
 # the below will only display when external screen is attached
 meeting_status = 'IN A MEETING'  # text when in a meeting
 busy_status = 'BUSY'  # text when busy
 available_status = 'AVAILABLE'  # text when available
 away_status = 'AWAY'  # test when away
 
-"""calibration of the PIR sensor (no movement should be performed during calibration)"""
+# calibration of the PIR sensor (no movement should be performed during calibration)
 calibration = 0
 print("Motion sensor calibration", end='')
 sys.stdout.flush()
@@ -91,11 +91,8 @@ print("\nStatus in operation!")
 
 
 def get_credentials():
-    """gets valid user credentials from local storage.
-    if credentials are not present, or if they are invalid,
-    the OAuth2 flow is executed to get the new credentials.
-    it returns the obtained credential.
-    """
+    """gets valid user credentials from local storage. if credentials are not present, or if they are invalid,
+    the OAuth2 flow is executed to get the new credentials. it returns the obtained credential."""
     home_dir = os.path.expanduser('~')
     credential_dir = os.path.join(home_dir, '.credentials')
     if not os.path.exists(credential_dir):
@@ -116,6 +113,7 @@ def get_credentials():
 
 
 def switch_lights_off():
+    """switching off the lights for 0.5 second to create blinking effect when no movement is detected"""
     GPIO.output(meeting_pin, GPIO.LOW)
     GPIO.output(busy_pin, GPIO.LOW)
     GPIO.output(available_pin, GPIO.LOW)
@@ -123,6 +121,7 @@ def switch_lights_off():
 
 
 def lights_flash():
+    """fast blink before the lights turns off"""
     if status == meeting_status:
         GPIO.output(meeting_pin, GPIO.HIGH)
         GPIO.output(busy_pin, GPIO.LOW)
@@ -153,8 +152,7 @@ def lights_flash():
 
 
 def detection(start):
-    """it checks the movement and returns true
-    or false if the away time is met"""
+    """it checks the movement and returns true or false if the away time is met"""
     global start_time
     global flash
     if not GPIO.input(pir_pin):
@@ -191,11 +189,8 @@ def get_events():
 
 
 def options():
-    """it checks the details about events
-    if meeting word is present in the title or description
-    it returns true for meeting status
-    it returns busy as true only if at least one event is set to "Busy"
-    in the calendar
+    """it checks the details about events if meeting word is present in the title or description, it returns
+    true for meeting status, it returns busy as true only if at least one event is set to "Busy" in the calendar,
     it also returns obtained new titles, descriptions and running events count"""
     events = get_events()
     meeting = False
@@ -232,27 +227,29 @@ def options():
 
 
 def meeting_on():
+    """turns meeting light on"""
     GPIO.output(meeting_pin, GPIO.HIGH)
     GPIO.output(busy_pin, GPIO.LOW)
     GPIO.output(available_pin, GPIO.LOW)
 
 
 def busy_on():
+    """turns busy light on"""
     GPIO.output(busy_pin, GPIO.HIGH)
     GPIO.output(meeting_pin, GPIO.LOW)
     GPIO.output(available_pin, GPIO.LOW)
 
 
 def available_on():
+    """turns available light on"""
     GPIO.output(available_pin, GPIO.HIGH)
     GPIO.output(meeting_pin, GPIO.LOW)
     GPIO.output(busy_pin, GPIO.LOW)
 
 
 def lights():
-    """it checks for motions invoking detection() function
-    and it turns the lights off if no motion is present
-    or it turns the lights on according to the events"""
+    """it checks for motions invoking detection() function and it turns the lights off if no motion is present
+    or it turns the lights on according to the events invoking the correlated function"""
     motion_present = detection(start_time)
     new_titles, new_desc_text, meeting, busy, new_counter = options()
     if not motion_present:
