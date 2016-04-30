@@ -62,6 +62,7 @@ desc_text = []
 request = 0
 start_time = time.time()
 previously_away = None
+flash = 0
 
 """custom variables to modify as required"""
 max_events = 5  # maximum number of events the script will check
@@ -118,43 +119,58 @@ def switch_lights_off():
     GPIO.output(meeting_pin, GPIO.LOW)
     GPIO.output(busy_pin, GPIO.LOW)
     GPIO.output(available_pin, GPIO.LOW)
+    time.sleep(0.5)
 
 
 def lights_flash():
-    GPIO.output(meeting_pin, GPIO.HIGH)
-    GPIO.output(busy_pin, GPIO.LOW)
-    GPIO.output(available_pin, GPIO.LOW)
-    time.sleep(0.1)
-    GPIO.output(meeting_pin, GPIO.LOW)
-    GPIO.output(busy_pin, GPIO.HIGH)
-    GPIO.output(available_pin, GPIO.LOW)
-    time.sleep(0.1)
-    GPIO.output(meeting_pin, GPIO.LOW)
-    GPIO.output(busy_pin, GPIO.LOW)
-    GPIO.output(available_pin, GPIO.HIGH)
-    time.sleep(0.1)
+    if status == meeting_status:
+        GPIO.output(meeting_pin, GPIO.HIGH)
+        GPIO.output(busy_pin, GPIO.LOW)
+        GPIO.output(available_pin, GPIO.LOW)
+        time.sleep(0.1)
+        GPIO.output(meeting_pin, GPIO.LOW)
+        GPIO.output(busy_pin, GPIO.LOW)
+        GPIO.output(available_pin, GPIO.LOW)
+        time.sleep(0.1)
+    elif status == busy_status:
+        GPIO.output(meeting_pin, GPIO.LOW)
+        GPIO.output(busy_pin, GPIO.HIGH)
+        GPIO.output(available_pin, GPIO.LOW)
+        time.sleep(0.1)
+        GPIO.output(meeting_pin, GPIO.LOW)
+        GPIO.output(busy_pin, GPIO.LOW)
+        GPIO.output(available_pin, GPIO.LOW)
+        time.sleep(0.1)
+    elif status == available_status:
+        GPIO.output(meeting_pin, GPIO.LOW)
+        GPIO.output(busy_pin, GPIO.LOW)
+        GPIO.output(available_pin, GPIO.HIGH)
+        time.sleep(0.1)
+        GPIO.output(meeting_pin, GPIO.LOW)
+        GPIO.output(busy_pin, GPIO.LOW)
+        GPIO.output(available_pin, GPIO.LOW)
+        time.sleep(0.1)
 
 
 def detection(start):
     """it checks the movement and returns true
     or false if the away time is met"""
     global start_time
+    global flash
     if not GPIO.input(pir_pin):
         elapsed_time = time.time() - start
         if away_time*20 < elapsed_time < away_time*60:
             switch_lights_off()
-            time.sleep(1)
-        elif away_time*60 < elapsed_time < away_time*63:
-            flash = 0
+        elif elapsed_time > away_time*60:
             while flash < 5:
                 lights_flash()
                 flash += 1
-        elif elapsed_time > away_time*62:
             switch_lights_off()
             return False
         return True
     else:
         start_time = time.time()
+        flash = 0
         return True
 
 
