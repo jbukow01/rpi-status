@@ -68,7 +68,7 @@ flash = 0
 max_events = 5  # maximum number of events the script will check
 update_interval = 0  # interval between updates in seconds (increase only if "Rate limit exceeded!" error appears)
 error_wait_time = 10  # error wait time interval in seconds before next try
-away_time = 5  # time in minutes without any movement in the office before the status will change to away
+away_time = 1  # time in minutes without any movement in the office before the status will change to away
 # the below will only display when external screen is attached
 meeting_status = 'IN A MEETING'  # text when in a meeting
 busy_status = 'BUSY'  # text when busy
@@ -268,7 +268,7 @@ def lights():
 
 
 def status_print():
-    """it prints the status of the office in the console"""
+    """it prints the status of the office in the console only if there is a change"""
     global request
     global status
     global counter
@@ -286,6 +286,7 @@ def status_print():
         if status == away_status and not previously_away:
             print('\nStatus of the office: ', end="")
             print(status)
+            print('Last updated: ', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             request = 0
             previously_away = True
         elif status != away_status:
@@ -318,7 +319,7 @@ if __name__ == '__main__':
             if error.get('code') == 403 and \
                 error.get('errors')[0].get('reason') \
                     in ['rateLimitExceeded', 'userRateLimitExceeded']:
-                print('Rate limit exceeded! Waiting 10 seconds...')
+                print('Rate limit exceeded! Waiting ' + str(error_wait_time) + ' seconds...')
                 time.sleep(error_wait_time)
             elif error.get('code') == 500:
                 print('Server Internal Error (UPDATE PENDING...)')
