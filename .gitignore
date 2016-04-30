@@ -2,4 +2,4 @@ client_secret.json
 .idea/
 restart-rpi-status
 pir.py
-start-status.sh
+status.service
