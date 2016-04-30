@@ -113,41 +113,28 @@ def get_credentials():
 
 
 def switch_lights_off():
-    """switching off the lights for 0.5 second to create blinking effect when no movement is detected"""
+    """switching off the lights"""
     GPIO.output(meeting_pin, GPIO.LOW)
     GPIO.output(busy_pin, GPIO.LOW)
     GPIO.output(available_pin, GPIO.LOW)
-    time.sleep(0.5)
 
 
 def lights_flash():
     """fast blink before the lights turns off"""
     if status == meeting_status:
-        GPIO.output(meeting_pin, GPIO.HIGH)
-        GPIO.output(busy_pin, GPIO.LOW)
-        GPIO.output(available_pin, GPIO.LOW)
+        meeting_on()
         time.sleep(0.1)
-        GPIO.output(meeting_pin, GPIO.LOW)
-        GPIO.output(busy_pin, GPIO.LOW)
-        GPIO.output(available_pin, GPIO.LOW)
+        switch_lights_off()
         time.sleep(0.1)
     elif status == busy_status:
-        GPIO.output(meeting_pin, GPIO.LOW)
-        GPIO.output(busy_pin, GPIO.HIGH)
-        GPIO.output(available_pin, GPIO.LOW)
+        busy_on()
         time.sleep(0.1)
-        GPIO.output(meeting_pin, GPIO.LOW)
-        GPIO.output(busy_pin, GPIO.LOW)
-        GPIO.output(available_pin, GPIO.LOW)
+        switch_lights_off()
         time.sleep(0.1)
     elif status == available_status:
-        GPIO.output(meeting_pin, GPIO.LOW)
-        GPIO.output(busy_pin, GPIO.LOW)
-        GPIO.output(available_pin, GPIO.HIGH)
+        available_on()
         time.sleep(0.1)
-        GPIO.output(meeting_pin, GPIO.LOW)
-        GPIO.output(busy_pin, GPIO.LOW)
-        GPIO.output(available_pin, GPIO.LOW)
+        switch_lights_off()
         time.sleep(0.1)
 
 
@@ -159,6 +146,7 @@ def detection(start):
         elapsed_time = time.time() - start
         if away_time*20 < elapsed_time < away_time*60:
             switch_lights_off()
+            time.sleep(0.5)
         elif elapsed_time > away_time*60:
             while flash < 5:
                 lights_flash()
