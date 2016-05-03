@@ -66,9 +66,10 @@ flash = 0
 
 # custom variables to modify as required
 max_events = 5  # maximum number of events the script will check
-update_interval = 0  # interval between updates in seconds (increase only if "Rate limit exceeded!" error appears)
+update_interval = 1  # interval between updates in seconds (increase only if "Rate limit exceeded!" error appears)
 error_wait_time = 10  # error wait time interval in seconds before next try
 away_time = 1  # time in minutes without any movement in the office before the status will change to away
+calendar_id = 'primary'  # the name of the calendar for the script to read the events
 # the below will only display when external screen is attached
 meeting_status = 'IN A MEETING'  # text when in a meeting
 busy_status = 'BUSY'  # text when busy
@@ -88,6 +89,7 @@ while calibration < 20:
     GPIO.output(meeting_pin, GPIO.LOW)
     time.sleep(0.2)
 print("\nStatus in operation!")
+print("\nChecking your calendar for events...")
 
 
 def get_credentials():
@@ -144,7 +146,7 @@ def detection(start):
     global flash
     if not GPIO.input(pir_pin):
         elapsed_time = time.time() - start
-        if away_time*20 < elapsed_time < away_time*60:
+        if away_time*30 < elapsed_time < away_time*60:
             switch_lights_off()
             time.sleep(0.5)
         elif elapsed_time > away_time*60:
@@ -170,7 +172,7 @@ def get_events():
     threshold = (datetime.datetime.utcnow() + timedelta(seconds=1)).isoformat() + 'Z'
 
     events_result = service.events().list(
-        calendarId='primary', timeMin=now, timeMax=threshold, maxResults=max_events, singleEvents=True,
+        calendarId=calendar_id, timeMin=now, timeMax=threshold, maxResults=max_events, singleEvents=True,
         orderBy='startTime').execute()
     events = events_result.get('items', [])
     return events
@@ -185,7 +187,7 @@ def options():
     busy = False
 
     new_counter = 0
-    new_titles = []
+    new_title = []
     new_desc_text = []
 
     for event in events:
@@ -195,12 +197,12 @@ def options():
         summary = event.get('summary')  # to get the title
         description = event.get('description')  # description of the event
         if summary is not None:
-            new_titles.append(summary)
+            new_title.append(summary)
             lower_case = summary.lower()
             if lower_case.find('meeting') >= 0:
                 meeting = True
         else:
-            new_titles.append('(No title)')
+            new_title.append('(No title)')
         if description is not None:
             new_desc_text.append(description)
             lower_case = description.lower()
@@ -211,7 +213,7 @@ def options():
         if transparency not in ['transparent']:
             busy = True
         new_counter += 1
-    return new_titles, new_desc_text, meeting, busy, new_counter
+    return new_title, new_desc_text, meeting, busy, new_counter
 
 
 def meeting_on():
@@ -263,13 +265,13 @@ def status_print():
     global titles
     global desc_text
     global previously_away
-    new_titles, new_desc_text, meeting, busy, new_counter = options()
+    new_title, new_desc_text, meeting, busy, new_counter = options()
     new_status = lights()
 
-    if new_status != status or new_counter != counter or new_titles != titles or new_desc_text != desc_text:
+    if new_status != status or new_counter != counter or new_title != titles or new_desc_text != desc_text:
         status = new_status
         counter = new_counter
-        titles = new_titles
+        titles = new_title
         desc_text = new_desc_text
         if status == away_status and not previously_away:
             print('\nStatus of the office: ', end="")
@@ -278,8 +280,7 @@ def status_print():
             request = 0
             previously_away = True
         elif status != away_status:
-            print("\nChecking your calendar for events...")
-            print('Number of running events: ', counter)
+            print('\nNumber of running events: ', counter)
             no_titles = 0
             for title in titles:
                 no_titles += 1
@@ -308,34 +309,44 @@ if __name__ == '__main__':
                 error.get('errors')[0].get('reason') \
                     in ['rateLimitExceeded', 'userRateLimitExceeded']:
                 print('Rate limit exceeded! Waiting ' + str(error_wait_time) + ' seconds...')
+                lights_flash()
                 time.sleep(error_wait_time)
             elif error.get('code') == 500:
-                print('Server Internal Error (UPDATE PENDING...)')
+                print('Internal Server Error (UPDATE PENDING...)')
+                lights_flash()
                 time.sleep(error_wait_time)
             elif IOError:
                 print('I/O error (UPDATE PENDING...)')
+                lights_flash()
                 time.sleep(error_wait_time)
             elif ssl.SSLError:
                 print('SSL error (UPDATE PENDING...)')
+                lights_flash()
                 time.sleep(error_wait_time)
             elif ssl.SSLEOFError:
                 print('SSL error (UPDATE PENDING...)')
+                lights_flash()
                 time.sleep(error_wait_time)
             elif socket.error:
                 print('Network is unreachable (UPDATE PENDING...)')
+                lights_flash()
                 time.sleep(error_wait_time)
             else:
                 print('Unexpected Error! (UPDATE PENDING...)')
+                lights_flash()
                 time.sleep(error_wait_time)
         except socket_error as serr:
             if serr.errno == errno.ECONNREFUSED:
                 print('Connection Refused! (UPDATE PENDING...)')
+                lights_flash()
                 time.sleep(error_wait_time)
             else:
                 print('Unexpected Error! (UPDATE PENDING...)')
+                lights_flash()
                 time.sleep(error_wait_time)
         except httplib2.ServerNotFoundError:
             print('Server Not Found! Please check internet connection.')
+            lights_flash()
             time.sleep(error_wait_time)
         except KeyboardInterrupt:
             print('\nInterrupted by external source')

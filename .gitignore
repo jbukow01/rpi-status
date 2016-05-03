@@ -1,5 +1,3 @@
-client_secret.json
 .idea/
-restart-rpi-status
-pir.py
+client_secret.json
 status.service
