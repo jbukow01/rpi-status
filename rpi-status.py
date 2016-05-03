@@ -68,7 +68,7 @@ flash = 0
 max_events = 5  # maximum number of events the script will check
 update_interval = 1  # interval between updates in seconds (increase only if "Rate limit exceeded!" error appears)
 error_wait_time = 10  # error wait time interval in seconds before next try
-away_time = 1  # time in minutes without any movement in the office before the status will change to away
+away_time = 20  # time in minutes without any movement in the office before the status will change to away
 calendar_id = 'primary'  # the name of the calendar for the script to read the events
 # the below will only display when external screen is attached
 meeting_status = 'IN A MEETING'  # text when in a meeting
